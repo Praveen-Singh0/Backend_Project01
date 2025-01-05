@@ -53,7 +53,7 @@ const userSchema = new Schema(
 //this is a middlewere (before the data save inside database password will be encrypt).
 userSchema.pre("save", async function (next) {
   if (this.isModified("password")) return next(); // and only when password will modified, now every time.
-  this.password = bcrypt.hash(this.password, 10)
+  this.password = await bcrypt.hash(this.password, 10)
   next()
 })
 
