@@ -1,7 +1,7 @@
 import { asyncHandler } from "../utils/asyncHandler.js"
 import { ApiError } from "../utils/ApiError.js"
 import { User } from "../models/user.model.js"
-import {uploadOnCloudinary} from "../utils/cloudinary.js"
+import { uploadOnCloudinary } from "../utils/cloudinary.js"
 import { ApiResponse } from "../utils/ApiResponse.js"
 
 const registerUser = asyncHandler(async (req, res) => {
@@ -28,7 +28,7 @@ const registerUser = asyncHandler(async (req, res) => {
 
 
   // check user is already inside DataBase (User.model is directly talk to database)
-  const existedUser = User.findOne({ $or: [{ userName }, { email }] })
+  const existedUser = await User.findOne({ $or: [{ userName }, { email }] })
   if (existedUser) {
     throw new ApiError(409, "User already exist");
   }
@@ -36,15 +36,23 @@ const registerUser = asyncHandler(async (req, res) => {
 
   // check is req.files has file path or not (user ne photo upload ki h ki nhi ki)
   const avatarLocatPath = req.files?.avatar[0]?.path;
-  const coverImageLocalPath = req.files?.coverImage[0]?.path;
+  // const coverImageLocalPath = req.files?.coverImage[0]?.path; // this is not good code , let suppose we dont have coverImage on files then value will be undefined and how undefind has [0 index] this may be cause error
+
+
+  //handle errors more explicitly, you can add a validation check
+  let coverImageLocalPath;
+  if (req.files && Array.isArray(req.files.coverImage) && req.files.coverImage.length > 0) {
+    coverImageLocalPath = req.files.coverImage[0].path;
+  }
+
   if (!avatarLocatPath) { // only make avatar required
-    throw new ApiError(400, "Avatar flies is required") 
+    throw new ApiError(400, "Avatar flies is required")
   }
 
   //upload from my server to cloudinery server 
   const avatar = await uploadOnCloudinary(avatarLocatPath);
   const coverImage = await uploadOnCloudinary(coverImageLocalPath);
-  if(!avatar){ // if avatar nahi hoga toh DB fatega you know...
+  if (!avatar) { // if avatar nahi hoga toh DB fatega you know...
     throw new ApiError(400, "Avatar flies is required");
   }
 
@@ -52,7 +60,7 @@ const registerUser = asyncHandler(async (req, res) => {
   const user = await User.create({
     fullName,
     avatar: avatar.url,
-    converImage: coverImage?.url || "",
+    coverImage: coverImage?.url || "",
     email,
     password,
     userName: userName.toLowerCase(),
@@ -62,7 +70,7 @@ const registerUser = asyncHandler(async (req, res) => {
   const createdUser = await User.findById(user._id).select(
     "-password -refreshToken"
   )
-  if(!createdUser){
+  if (!createdUser) {
     throw new ApiError(500, "Something wrong while register");
   }
 
