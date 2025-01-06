@@ -39,7 +39,7 @@ const userSchema = new Schema(
     }],
     password: {
       type: String,
-      required: [true, 'passowrd is required']
+      required: [true, 'password is required']
     },
     refreshToken: {
       type: String
@@ -50,16 +50,17 @@ const userSchema = new Schema(
   }
 )
 
-//this is a middlewere (before the data save inside database password will be encrypt).
+//(password encrypt).
 userSchema.pre("save", async function (next) {
-  if (this.isModified("password")) return next(); // and only when password will modified, now every time.
+  if (!this.isModified("password")) return next(); // and only when password will modified, now every time.
   this.password = await bcrypt.hash(this.password, 10)
   next()
 })
 
 //now here we check the password is correct at the time dcrypt..
-userSchema.methods.isPasswordCorrect = async function (passowrd) {
-  return await bcrypt.compare(passowrd, this.passowrd)
+userSchema.methods.isPasswordCorrect = async function (password) {
+
+ return await bcrypt.compare(password, this.password)
 }
 
 
@@ -78,7 +79,7 @@ userSchema.methods.generateAccessToken = function () {
 }
  
 userSchema.methods.generateRefreshToken = function () {
-  jwt.sign(
+  return jwt.sign(
     { //1st JWT Need Payload (Data) only ID
       _id: this._id,
     },

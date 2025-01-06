@@ -3,6 +3,32 @@ import { ApiError } from "../utils/ApiError.js"
 import { User } from "../models/user.model.js"
 import { uploadOnCloudinary } from "../utils/cloudinary.js"
 import { ApiResponse } from "../utils/ApiResponse.js"
+///Note -> use await there, where you think execution may takes time.... 
+
+
+
+//genearte access & refresh token 
+const generateAccessAndRefreshToken = async (userId) => {
+
+  try {
+    const user = await User.findById(userId); //get db user, for get its userSchema methods
+    const accessToken = user.generateAccessToken()
+    const refreshToken = user.generateRefreshToken()
+
+
+    user.refreshToken = refreshToken; // we have user object in db model where refresh token field, so here i generate refresh token and put inside user object
+
+    await user.save({ validateBeforeSave: false })  // and save that refresh token while i am going to login, 
+
+    return { accessToken, refreshToken }
+
+  } catch (error) {
+    throw new ApiError(500, "something went wrong while generating refresh and access token ")
+  }
+
+}
+
+
 
 const registerUser = asyncHandler(async (req, res) => {
   //get user details from request (front-end)
@@ -80,4 +106,93 @@ const registerUser = asyncHandler(async (req, res) => {
 
 })
 
-export { registerUser }
+const loginUser = asyncHandler(async (req, res) => {
+  //req body se Data
+  //userName or email
+  //find the user
+  //password check
+  //access and refresh token generate and send
+  //send cookies
+
+
+  //req body se Data
+  const { userName, email, password } = req.body;
+
+
+  //userName or email
+  if (!userName && !email) {
+    throw new ApiError(400, "username or email is required");
+  }
+
+  //Find user
+  const user = await User.findOne({
+    $or: [{ userName }, { email }] //find user based on userName or email
+  })
+
+
+  if (!user) {
+    throw new ApiError(404, "user not exist");
+  }
+
+  //password check 
+  const ispasswordValid = await user.isPasswordCorrect(password)
+  if (!ispasswordValid) {
+    throw new ApiError(401, "password incorrect");
+  }
+
+
+  //generate access and refresh tokens and send via cookie
+  const { accessToken, refreshToken } = await generateAccessAndRefreshToken(user._id);
+
+  const loggedInUser = await User.findById(user._id).select("-password -refreshToken")
+
+  const options = { //now cookie is not modify form frontend
+    httpOnly: true,
+    secure: true,
+  }
+
+  return res
+    .status(200)
+    .cookie("accessToken", accessToken, options)
+    .cookie("refreshToken", refreshToken, options)
+    .json(
+      new ApiResponse(200, {
+        user: loggedInUser, accessToken, refreshToken
+      },
+        "User logged in succefully"
+      )
+    )
+})
+
+const logoutUser = asyncHandler(async (req, res)=>{
+
+  await
+   User.findByIdAndUpdate(
+    req.user._id, 
+    {
+    $set: {
+      refreshToken: undefined
+    }
+    }, 
+    {
+      new: true
+    }
+  )
+
+  const options = {
+    httpOnly: true,
+    secure: true
+  }
+
+  return res.status(200)
+  .clearCookie("accessToken", options)
+  .clearCookie("refreshToken", options)
+  .json(
+    new ApiResponse(200, {}, "user logged out")
+  )
+
+
+
+})
+
+export { registerUser, loginUser, logoutUser }
